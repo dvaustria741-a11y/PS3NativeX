@@ -162,13 +162,25 @@ fun GameItem(
             return
         }
 
-        if (FirmwareRepository.progressChannel.value != null) {
-            AlertDialogQueue.showDialog(
-                title = context.getString(R.string.games_firmware_missing_title),
-                message = context.getString(R.string.games_firmware_installing_message)
-            )
-            return
-        }
+        // A previous version also blocked boot here whenever
+        // FirmwareRepository.progressChannel.value != null. That doesn't
+        // mean firmware is still installing -- installFw() marks firmware
+        // installed (what version.value above already checked) as soon as
+        // the PUP is extracted, then silently chains vsh.self's background
+        // PPU AOT compile onto the SAME progress id, and progressChannel
+        // doesn't clear until that whole chain finishes (see
+        // native-lib.cpp's g_compilationQueue.push after
+        // sendFirmwareInstalled). That extra check was blocking every game
+        // launch behind vsh's background compile even with firmware fully
+        // installed.
+        //
+        // A boot request during vsh's background compile is exactly what
+        // acquireEmu() in the native compilation queue already exists to
+        // handle: it forces Emu into system_state::stopped, and
+        // ppu_precompile() checks Emu.IsStopped() between files, so the
+        // precompile aborts promptly and the real boot proceeds on its
+        // own -- there's nothing left for the UI to gate here once
+        // version.value is known.
 
         if (game.info.path == "$" || game.findProgress(
                 arrayOf(GameProgressType.Install, GameProgressType.Remove)
