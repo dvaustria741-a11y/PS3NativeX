@@ -179,6 +179,19 @@ fun GameDetailDialog(
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(dialogWindow) {
             dialogWindow?.let { win ->
+                // The Dialog theme's default window is WRAP_CONTENT and
+                // reserves a margin around the edges (windowMinWidthMinor/
+                // Major from the platform dialog theme) -- that's the strip
+                // of the underlying screen that was visible around this
+                // "fullscreen" dialog even though the Compose content inside
+                // already used fillMaxSize(). usePlatformDefaultWidth=false
+                // only lifts the *max* width clamp, it doesn't force the
+                // window to fill the screen. Forcing MATCH_PARENT here is
+                // what actually makes the window edge-to-edge.
+                win.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+                )
                 WindowCompat.setDecorFitsSystemWindows(win, false)
                 win.attributes = win.attributes.apply {
                     layoutInDisplayCutoutMode =
