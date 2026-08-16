@@ -29,7 +29,25 @@ public:
 	void Pause() override;
 
 private:
+#if defined(__ANDROID__)
+	// 10ms (the cross-platform default below) is a fine target on desktop
+	// backends -- WASAPI/PulseAudio/CoreAudio, and cubeb_get_min_latency()
+	// for them, are reliable enough that the OS mixer covers small hiccups.
+	// On Android, cubeb_get_min_latency() for the AAudio/OpenSL backend
+	// reports the theoretical low-latency burst size, which is only
+	// actually sustainable when the audio callback thread gets
+	// near-uninterrupted scheduling. That doesn't hold while the same CPU
+	// is simultaneously running full PS3 emulation (PPU+SPU+RSX) on a
+	// mid-range mobile SoC -- stream_latency below ends up requesting
+	// ~10ms via std::max() whenever the device reports at or under that,
+	// which is too tight for that workload and shows up as audible
+	// crackling under load. A larger requested buffer costs a bit more
+	// output latency but gives the callback thread enough headroom to
+	// survive normal scheduling jitter from the emulation threads.
+	static constexpr f64 AUDIO_MIN_LATENCY = 2048.0 / 48000; // ~43ms
+#else
 	static constexpr f64 AUDIO_MIN_LATENCY = 512.0 / 48000; // 10ms
+#endif
 
 	cubeb* m_ctx = nullptr;
 	cubeb_stream* m_stream = nullptr;
