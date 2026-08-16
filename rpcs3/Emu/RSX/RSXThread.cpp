@@ -3419,6 +3419,25 @@ namespace rsx
 			limit = limit2;
 		}
 
+		// Diagnostic: confirm what this code actually resolves frame_limit/
+		// second_frame_limit/vsync to. Pair with swapchain.cpp's existing
+		// "Swapchain: present mode %d in use." log (VK_PRESENT_MODE_FIFO_KHR
+		// = 2) in the same capture - together they separate "the emulator's
+		// own pacing target isn't what the UI asked for" from "pacing is
+		// correct but the swapchain fell back to a vsync-locked present
+		// mode anyway" as the cause of an unexpected frame-rate ceiling.
+		// Logged only on change, not every flip.
+		{
+			static atomic_t<double> s_last_logged_limit{-1.};
+			if (double prev = s_last_logged_limit.load(); prev != limit)
+			{
+				s_last_logged_limit = limit;
+				rsx_log.notice("FrameLimit: mode=%s limit=%.3f second_frame_limit=%.3f vsync=%s",
+					fmt::format("%s", frame_limit), limit, static_cast<double>(g_cfg.video.second_frame_limit),
+					fmt::format("%s", g_cfg.video.vsync.get()));
+			}
+		}
+
 		if (limit)
 		{
 			const u64 needed_us = static_cast<u64>(1000000 / limit);

@@ -77,6 +77,7 @@
 #include <functional>
 #include <iterator>
 #include <map>
+#include <unordered_map>
 #include <mutex>
 #include <memory>
 #include <jni.h>
@@ -2317,7 +2318,22 @@ static bool installRap(JNIEnv *env, fs::file &&file, jlong progressId,
   }
 
   collectGameInfo(env, -1, {rootPath});
-  g_compilationQueue.push(progress, std::move(ebootPath));
+
+  // Report the license install itself as finished now: the key is written
+  // and verified, and the game's unlock flag is already refreshed above.
+  // Previously this progress id stayed open until the PPU precompile below
+  // finished, which can take a long time (or effectively never finish if
+  // Emu isn't in a "stopped" state yet) -- from the UI's perspective the
+  // "License Installation" notification and the game tile's Compile
+  // progress marker would just sit there, only appearing to resolve after
+  // an app restart because progress markers are in-memory only and get
+  // wiped on relaunch, not because anything actually completed.
+  progress.success(0);
+
+  // Precompilation is a nice-to-have follow-up, not part of "is the license
+  // installed" -- run it detached from any visible progress id so it can't
+  // block or re-open the notification/UI state we just marked finished.
+  g_compilationQueue.push({.progressId = -1, .path = std::move(ebootPath)});
   return true;
 }
 
@@ -2942,16 +2958,30 @@ static cfg::_base *find_cfg_node(cfg::_base *root, std::string_view path) {
 }
 
 static std::mutex g_settings_mutex;
-static std::string g_settings_title;
-static std::unique_ptr<cfg_root> g_settings_cfg;
+
+// Previously a single (title, cfg_root) slot: any settingsGet/settingsSet
+// for a *different* titleId -- and plenty of screens besides this one call
+// in with their own titleId, including "" for global settings (GpuDriversScreen,
+// AdvancedSettingsScreen, LogChannelSettings, the in-game drawer) -- would
+// evict whatever title was cached. That's not a data-loss bug (queued disk
+// writes are captured as independent strings in g_save_pending before
+// eviction can touch them), but it means a plain "select a driver, leave the
+// screen, come back" could easily interleave with one of those other
+// screens touching a different titleId in between, forcing a disk re-read
+// for no reason and making the whole cache pointless during any kind of
+// concurrent access. Keying by title instead removes that dependency
+// entirely: this title's cfg_root, once built, stays live and untouched by
+// what any other titleId is doing.
+static std::unordered_map<std::string, std::unique_ptr<cfg_root>>
+    g_settings_cache;
 
 static cfg_root *settings_root_for(const std::string &titleId) {
   if (titleId.empty()) {
     return &g_cfg;
   }
 
-  if (g_settings_cfg && g_settings_title == titleId) {
-    return g_settings_cfg.get();
+  if (auto it = g_settings_cache.find(titleId); it != g_settings_cache.end()) {
+    return it->second.get();
   }
 
   auto cfg = std::make_unique<cfg_root>();
@@ -2968,9 +2998,8 @@ static cfg_root *settings_root_for(const std::string &titleId) {
     }
   }
 
-  g_settings_cfg = std::move(cfg);
-  g_settings_title = titleId;
-  return g_settings_cfg.get();
+  auto [inserted, _] = g_settings_cache.emplace(titleId, std::move(cfg));
+  return inserted->second.get();
 }
 
 static std::mutex g_save_mutex;
