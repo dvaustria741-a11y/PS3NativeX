@@ -2317,7 +2317,22 @@ static bool installRap(JNIEnv *env, fs::file &&file, jlong progressId,
   }
 
   collectGameInfo(env, -1, {rootPath});
-  g_compilationQueue.push(progress, std::move(ebootPath));
+
+  // Report the license install itself as finished now: the key is written
+  // and verified, and the game's unlock flag is already refreshed above.
+  // Previously this progress id stayed open until the PPU precompile below
+  // finished, which can take a long time (or effectively never finish if
+  // Emu isn't in a "stopped" state yet) -- from the UI's perspective the
+  // "License Installation" notification and the game tile's Compile
+  // progress marker would just sit there, only appearing to resolve after
+  // an app restart because progress markers are in-memory only and get
+  // wiped on relaunch, not because anything actually completed.
+  progress.success(0);
+
+  // Precompilation is a nice-to-have follow-up, not part of "is the license
+  // installed" -- run it detached from any visible progress id so it can't
+  // block or re-open the notification/UI state we just marked finished.
+  g_compilationQueue.push({.progressId = -1, .path = std::move(ebootPath)});
   return true;
 }
 
