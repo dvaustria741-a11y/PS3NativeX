@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.rpcs3.R
 import net.rpcs3.RPCS3
+import net.rpcs3.dialogs.AlertDialogQueue
 import net.rpcs3.ui.components.SettingDropdown
 import net.rpcs3.utils.GpuDriverHelper
 
@@ -68,15 +69,44 @@ fun GameDriverSettings(titleId: String) {
             // immediately tapping Save could cancel this write
             // mid-flight before it ever reached settingsSet/flush, so
             // the pick silently never persisted no matter how quickly
-            // Save flushed afterwards. settingsWriter is a top-level
-            // scope (same one every other setting in this screen
-            // already uses) that outlives navigation.
+            // Save flushed afterwards. settingsWriter is a top-level,
+            // single-threaded scope (same one every other setting in
+            // this screen, including Save's own flush, already uses)
+            // that outlives navigation and strictly orders every write.
             settingsWriter.launch {
-                RPCS3.instance.settingsSet(DriverPathKey, "\"" + path + "\"", titleId)
-                RPCS3.instance.settingsSet(
+                // Neither settingsSet's return value nor a post-flush
+                // save failure were being checked here, unlike every
+                // other setting on this screen (see SettingItem.kt's
+                // commit()). A rejected or unwritten value would
+                // silently do nothing, and the next time this screen
+                // loads, LaunchedEffect reads back whatever is actually
+                // on disk -- the old selection -- which looks exactly
+                // like "the pick didn't stick" with zero indication why.
+                val pathOk = RPCS3.instance.settingsSet(DriverPathKey, "\"" + path + "\"", titleId)
+                val dirOk = RPCS3.instance.settingsSet(
                     DriverDataDirKey, "\"" + context.filesDir + "\"", titleId
                 )
+
+                if (!pathOk || !dirOk) {
+                    withContext(Dispatchers.Main) {
+                        AlertDialogQueue.showDialog(
+                            context.getString(R.string.settings_error_title),
+                            context.getString(R.string.settings_error_assign, metadata.name)
+                        )
+                    }
+                    return@launch
+                }
+
                 RPCS3.instance.settingsFlush()
+
+                RPCS3.instance.takeSettingsSaveFailure()?.let { target ->
+                    withContext(Dispatchers.Main) {
+                        AlertDialogQueue.showDialog(
+                            context.getString(R.string.settings_not_saved_title),
+                            context.getString(R.string.settings_not_saved_message, target)
+                        )
+                    }
+                }
             }
         }
     )
