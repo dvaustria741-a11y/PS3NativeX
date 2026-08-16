@@ -73,6 +73,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.ColorDrawable
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -179,17 +181,29 @@ fun GameDetailDialog(
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(dialogWindow) {
             dialogWindow?.let { win ->
-                // DialogProperties(usePlatformDefaultWidth = false) only removes the
-                // default ~90%-width margin; it does NOT make the dialog's underlying
-                // Window itself MATCH_PARENT. Without this, the window still sizes
-                // itself to WRAP_CONTENT, so fillMaxSize() below fills "however big
-                // the wrap-measured window happened to be" rather than the true
-                // screen bounds - the dialog renders as an inset card with the
-                // screen behind it visible around the edges instead of fullscreen.
+                // DialogProperties(usePlatformDefaultWidth = false) only lifts the
+                // *max* width clamp; it does not force the dialog's underlying
+                // Window itself to MATCH_PARENT. The Dialog theme's default window
+                // is WRAP_CONTENT with its own edge margins, so even with
+                // fillMaxSize() content inside, the window sized itself to
+                // "however big the wrap-measured content happened to be" - the
+                // dialog rendered as an inset card with the screen behind it
+                // visible around the edges instead of edge-to-edge.
                 win.setLayout(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT
                 )
+                // Separately: the Dialog theme's default windowBackground is the
+                // classic floating-card drawable, a rounded rect with its own
+                // built-in inset padding baked into the drawable - independent of
+                // the window's width/height. That padding is transparent, so even
+                // at MATCH_PARENT the underlying screen still showed through
+                // around the edges; setLayout alone only fixes the window's
+                // bounds, not what's painted at those bounds. Swapping to a plain
+                // transparent drawable removes that baked-in inset entirely - our
+                // own Box below already paints LaunchBlack (or the game art)
+                // across the full window regardless.
+                win.setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))
                 WindowCompat.setDecorFitsSystemWindows(win, false)
                 win.attributes = win.attributes.apply {
                     layoutInDisplayCutoutMode =

@@ -64,6 +64,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -468,16 +469,30 @@ fun GameItem(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (maxValue.longValue != 0L) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .width(64.dp)
-                                        .height(64.dp),
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    progress = {
-                                        progressValue.longValue.toFloat() / maxValue.longValue.toFloat()
-                                    },
-                                )
+                                val fraction =
+                                    progressValue.longValue.toFloat() / maxValue.longValue.toFloat()
+                                Box(contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .width(64.dp)
+                                            .height(64.dp),
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        progress = { fraction },
+                                    )
+                                    // The ring alone doesn't tell you how
+                                    // close a PKG install is to finishing --
+                                    // it was previously only visible as a
+                                    // percentage in the system notification.
+                                    // Overlaying the number here surfaces it
+                                    // right on the Library tile too.
+                                    Text(
+                                        text = "${(fraction * 100).toInt()}%",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             } else {
                                 CircularProgressIndicator(
                                     modifier = Modifier
