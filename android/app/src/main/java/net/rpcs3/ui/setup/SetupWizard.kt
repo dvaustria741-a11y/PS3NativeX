@@ -156,7 +156,19 @@ fun SetupWizard(
             detail = firmwareVersion?.let { stringResource(R.string.setup_firmware_installed, it) }
                 ?: stringResource(R.string.setup_firmware_detail),
             done = firmwareReady,
-            busy = firmwareProgress != null,
+            // installFw() reports "done" (sendFirmwareInstalled, which is
+            // what firmwareReady/firmwareVersion reflect) as soon as the
+            // PUP is extracted, then silently chains vsh.self's PPU AOT
+            // compile onto the SAME progress id in the background (see
+            // native-lib.cpp) -- that compile is what keeps firmwareProgress
+            // non-null afterward, not anything about firmware install
+            // itself. Gating busy on !firmwareReady too means this step
+            // shows done the moment the version is actually known, instead
+            // of hanging on a spinner for an unrelated background compile
+            // that can run for a while after "Installed: x.xx" already
+            // appeared -- exactly what this looked like: correct version
+            // shown, then still spinning as if nothing had finished.
+            busy = firmwareProgress != null && !firmwareReady,
             actionLabel = stringResource(R.string.setup_install),
             onAction = onInstallFirmware
         )
