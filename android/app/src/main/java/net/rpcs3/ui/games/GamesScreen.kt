@@ -662,6 +662,16 @@ fun GamesScreen(
     ) {
         val shown = remember(games.toList(), searchQuery, sort) {
             games
+                // VSH (the system XMB, added via sendVshBootable right after
+                // firmware install) isn't a game -- it can't be uninstalled,
+                // it can't be searched for meaningfully, and while its
+                // background PPU compile is running it shows up as a
+                // perpetually locked tile with a spinner sitting in the
+                // grid next to real games, which reads as broken rather
+                // than as a feature. It keeps compiling/updating in the
+                // background exactly as before; it's just not rendered
+                // here anymore.
+                .filter { game -> game.info.name.value != "VSH" }
                 .filter { game ->
                     searchQuery.isBlank() ||
                         (game.info.name.value ?: "").contains(searchQuery, ignoreCase = true)
