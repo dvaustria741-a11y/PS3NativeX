@@ -179,6 +179,17 @@ fun GameDetailDialog(
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(dialogWindow) {
             dialogWindow?.let { win ->
+                // DialogProperties(usePlatformDefaultWidth = false) only removes the
+                // default ~90%-width margin; it does NOT make the dialog's underlying
+                // Window itself MATCH_PARENT. Without this, the window still sizes
+                // itself to WRAP_CONTENT, so fillMaxSize() below fills "however big
+                // the wrap-measured window happened to be" rather than the true
+                // screen bounds - the dialog renders as an inset card with the
+                // screen behind it visible around the edges instead of fullscreen.
+                win.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+                )
                 WindowCompat.setDecorFitsSystemWindows(win, false)
                 win.attributes = win.attributes.apply {
                     layoutInDisplayCutoutMode =
