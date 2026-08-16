@@ -58,6 +58,19 @@ fun GameDriverSettings(titleId: String) {
                     RPCS3.instance.settingsSet(
                         DriverDataDirKey, "\"" + context.filesDir + "\"", titleId
                     )
+                    // Every other setting in this screen persists via a
+                    // self-contained set+flush pair (see SettingItem.kt's
+                    // commit()). This one didn't flush at all, and instead
+                    // relied on GameSettingsScreen's Save button to flush
+                    // later -- but Save runs on a *different*
+                    // rememberCoroutineScope() with no happens-before
+                    // relationship to this one. If Save's flush ran before
+                    // this settingsSet finished (a real race on
+                    // Dispatchers.IO's thread pool), the driver selection
+                    // was silently dropped even though the user tapped
+                    // Save. Flushing immediately here removes the race
+                    // entirely: the pick is durable the moment it's tapped.
+                    RPCS3.instance.settingsFlush()
                 }
             },
             onDelete = null

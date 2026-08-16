@@ -168,9 +168,22 @@ class GameRepository {
             }
         }
 
+        // Was missing @Keep/@JvmStatic, so it never actually existed as a
+        // callable static method from the native side (GetStaticMethodID
+        // would fail to resolve it, and R8 could strip it in release
+        // builds) -- nothing ever invoked this despite GameRepository.add()
+        // above already containing logic to find-and-replace a "$"
+        // placeholder entry by progressId, which only makes sense if this
+        // was meant to create that placeholder first.
+        @Keep
+        @JvmStatic
         fun createGameInstallEntry(progressId: Long) {
             synchronized(instance) {
-                val game = Game(GameInfoStore("$"))
+                // GameRepository has no Context to pull a localized string
+                // from, so this is a plain literal; it's only ever visible
+                // for the brief window before real metadata (with its own
+                // localized/real title) replaces it via add() below.
+                val game = Game(GameInfoStore("$", name = mutableStateOf("Installing\u2026")))
                 game.addProgress(GameProgress(progressId, GameProgressType.Install))
                 instance.games.add(0, game)
             }

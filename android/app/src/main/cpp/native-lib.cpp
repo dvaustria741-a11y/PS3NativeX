@@ -426,6 +426,19 @@ static void sendGameInfo(JNIEnv *env, jlong progressId,
                             progressId);
 }
 
+// Creates a placeholder "$" entry in the Library grid (see GameRepository.kt
+// createGameInstallEntry/add) immediately when an install starts, so users
+// get an in-app progress tile -- not just the system notification -- for
+// the (possibly long) stretch before fetchGameInfo/sendGameInfo can report
+// real metadata for the package being installed.
+static void sendGameInstallEntry(JNIEnv *env, jlong progressId) {
+  auto gameRepositoryClass = ensure(env->FindClass("net/rpcs3/GameRepository"));
+  auto methodId = ensure(env->GetStaticMethodID(
+      gameRepositoryClass, "createGameInstallEntry", "(J)V"));
+
+  env->CallStaticVoidMethod(gameRepositoryClass, methodId, progressId);
+}
+
 static void sendEmulationStopped(JNIEnv *env) {
   auto cls = env->FindClass("net/rpcs3/RPCS3");
 
@@ -2084,6 +2097,13 @@ static bool installPkgs(JNIEnv *env,
                         std::vector<std::pair<std::string, fs::file>> &&files,
                         jlong progressId) {
   Progress progress(env, progressId);
+
+  // Show a Library placeholder tile right away -- fetchGameInfo below can
+  // only run once each reader is constructed and its PSF is parseable,
+  // which for larger/slower packages can lag well behind when the user
+  // actually kicked off the install. GameRepository.add() already knows
+  // how to find-and-replace this "$" entry once real metadata arrives.
+  sendGameInstallEntry(env, progressId);
 
   std::deque<package_reader> readers;
   std::deque<std::string> bootable_paths;
