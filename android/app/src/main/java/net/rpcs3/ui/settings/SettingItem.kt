@@ -32,7 +32,13 @@ private fun variantsOf(item: JSONObject): List<String> {
     return List(array.length()) { array.optString(it, "") }
 }
 
-private val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+// internal (not private) so other settings composables in this package can
+// share the same non-cancellable writer instead of using
+// rememberCoroutineScope(), which gets torn down the instant the owning
+// composable leaves composition -- exactly what happens when Save/back
+// navigates away right after a write was kicked off (see
+// GameDriverSettings.kt for the bug this was causing).
+internal val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 private fun commit(
     context: Context,

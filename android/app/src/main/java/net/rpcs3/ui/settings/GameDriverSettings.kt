@@ -30,7 +30,6 @@ private const val DriverDataDirKey = "Video@@Vulkan@@Custom Driver@@Internal Dat
 @Composable
 fun GameDriverSettings(titleId: String) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val drivers = remember { GpuDriverHelper.getInstalledDrivers(context) }
     var selectedPath by remember(titleId) { mutableStateOf<String?>(null) }
 
@@ -53,23 +52,21 @@ fun GameDriverSettings(titleId: String) {
             isSelected = selectedPath != null && path == selectedPath,
             onSelect = {
                 selectedPath = path
-                scope.launch(Dispatchers.IO) {
+                // Deliberately NOT rememberCoroutineScope(): that scope is
+                // cancelled the instant this composable leaves composition,
+                // which is exactly what Save's navigateUp() does right
+                // after kicking off its own flush. Selecting a driver and
+                // immediately tapping Save could cancel this write
+                // mid-flight before it ever reached settingsSet/flush, so
+                // the pick silently never persisted no matter how quickly
+                // Save flushed afterwards. settingsWriter is a top-level
+                // scope (same one every other setting in this screen
+                // already uses) that outlives navigation.
+                settingsWriter.launch {
                     RPCS3.instance.settingsSet(DriverPathKey, "\"" + path + "\"", titleId)
                     RPCS3.instance.settingsSet(
                         DriverDataDirKey, "\"" + context.filesDir + "\"", titleId
                     )
-                    // Every other setting in this screen persists via a
-                    // self-contained set+flush pair (see SettingItem.kt's
-                    // commit()). This one didn't flush at all, and instead
-                    // relied on GameSettingsScreen's Save button to flush
-                    // later -- but Save runs on a *different*
-                    // rememberCoroutineScope() with no happens-before
-                    // relationship to this one. If Save's flush ran before
-                    // this settingsSet finished (a real race on
-                    // Dispatchers.IO's thread pool), the driver selection
-                    // was silently dropped even though the user tapped
-                    // Save. Flushing immediately here removes the race
-                    // entirely: the pick is durable the moment it's tapped.
                     RPCS3.instance.settingsFlush()
                 }
             },
