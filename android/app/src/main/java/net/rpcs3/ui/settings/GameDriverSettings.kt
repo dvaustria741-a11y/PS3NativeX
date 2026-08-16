@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.rpcs3.R
 import net.rpcs3.RPCS3
+import net.rpcs3.dialogs.AlertDialogQueue
 import net.rpcs3.ui.components.PaneSectionTitle
 import net.rpcs3.ui.drivers.DriverItem
 import net.rpcs3.utils.GpuDriverHelper
@@ -63,11 +64,42 @@ fun GameDriverSettings(titleId: String) {
                 // scope (same one every other setting in this screen
                 // already uses) that outlives navigation.
                 settingsWriter.launch {
-                    RPCS3.instance.settingsSet(DriverPathKey, "\"" + path + "\"", titleId)
-                    RPCS3.instance.settingsSet(
+                    // Neither settingsSet's return value nor a post-flush
+                    // save failure were being checked here, unlike every
+                    // other setting on this screen (see SettingItem.kt's
+                    // writeSetting). A rejected or unwritten value would
+                    // silently do nothing, and the next time this screen
+                    // loads, LaunchedEffect reads back whatever is actually
+                    // on disk - the old selection - which looks exactly
+                    // like "the pick didn't stick" with zero indication
+                    // why. Surfacing both here either fixes that directly
+                    // (if this was the cause) or rules it out for the next
+                    // test by making a real failure visible instead of silent.
+                    val pathOk = RPCS3.instance.settingsSet(DriverPathKey, "\"" + path + "\"", titleId)
+                    val dirOk = RPCS3.instance.settingsSet(
                         DriverDataDirKey, "\"" + context.filesDir + "\"", titleId
                     )
+
+                    if (!pathOk || !dirOk) {
+                        withContext(Dispatchers.Main) {
+                            AlertDialogQueue.showDialog(
+                                context.getString(R.string.settings_error_title),
+                                context.getString(R.string.settings_error_assign, metadata.name)
+                            )
+                        }
+                        return@launch
+                    }
+
                     RPCS3.instance.settingsFlush()
+
+                    RPCS3.instance.takeSettingsSaveFailure()?.let { target ->
+                        withContext(Dispatchers.Main) {
+                            AlertDialogQueue.showDialog(
+                                context.getString(R.string.settings_not_saved_title),
+                                context.getString(R.string.settings_not_saved_message, target)
+                            )
+                        }
+                    }
                 }
             },
             onDelete = null
@@ -80,3 +112,4 @@ fun GameDriverSettings(titleId: String) {
 
     Spacer(Modifier.height(14.dp))
 }
+
