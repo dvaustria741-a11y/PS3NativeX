@@ -87,6 +87,7 @@ import net.rpcs3.ui.settings.DriverFlagsSection
 import net.rpcs3.ui.components.PaneScaffold
 import net.rpcs3.ui.components.PaneSectionTitle
 import net.rpcs3.ui.components.PaneTab
+import net.rpcs3.ui.settings.settingsWriter
 import net.rpcs3.utils.GpuDriverHelper
 import net.rpcs3.utils.GpuDriverInstallResult
 import net.rpcs3.utils.GpuDriverMetadata
@@ -228,9 +229,42 @@ fun GpuDriversScreen(navigateBack: () -> Unit) {
 
                         val path = if (metadata.name == "Default") "" else file.path
 
-                        coroutineScope.launch(Dispatchers.IO) {
-                            RPCS3.instance.settingsSet("Video@@Vulkan@@Custom Driver@@Path", "\"" + path + "\"", "")
-                            RPCS3.instance.settingsSet("Video@@Vulkan@@Custom Driver@@Internal Data Directory", "\"" + context.filesDir + "\"", "")
+                        // Was coroutineScope.launch(Dispatchers.IO) on this
+                        // composable's own rememberCoroutineScope(), with no
+                        // settingsFlush() call at all -- the write only ever
+                        // got persisted if something else (MainActivity's
+                        // onPause) happened to flush later, and if this
+                        // composable left composition first (navigating
+                        // back right after picking a driver) the write could
+                        // be cancelled before settingsSet even ran. Same bug
+                        // class GameDriverSettings.kt had for the per-game
+                        // picker; same fix (see SettingItem.kt for why this
+                        // needs to be the shared, single-threaded writer and
+                        // not just "add a flush call" locally).
+                        settingsWriter.launch {
+                            val pathOk = RPCS3.instance.settingsSet(
+                                "Video@@Vulkan@@Custom Driver@@Path", "\"" + path + "\"", ""
+                            )
+                            val dirOk = RPCS3.instance.settingsSet(
+                                "Video@@Vulkan@@Custom Driver@@Internal Data Directory",
+                                "\"" + context.filesDir + "\"", ""
+                            )
+
+                            if (pathOk && dirOk) {
+                                RPCS3.instance.settingsFlush()
+                            }
+
+                            if (!pathOk || !dirOk) {
+                                withContext(Dispatchers.Main) {
+                                    snackbarHostState.showSnackbar(
+                                        message = context.getString(
+                                            R.string.settings_error_assign, metadata.name
+                                        ),
+                                        actionLabel = context.getString(R.string.action_dismiss),
+                                        duration = SnackbarDuration.Short
+                                    )
+                                }
+                            }
                         }
                     },
                     onDelete = if (metadata.name == "Default") null else { driverFile ->
