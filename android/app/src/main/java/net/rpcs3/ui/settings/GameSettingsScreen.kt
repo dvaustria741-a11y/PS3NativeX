@@ -259,7 +259,21 @@ fun GameSettingsScreen(
                             tint = Rpcs.Success,
                             horizontalPadding = 6.dp,
                             onClick = {
-                                scope.launch(Dispatchers.IO) {
+                                // Was scope.launch(Dispatchers.IO) on this
+                                // composable's own rememberCoroutineScope():
+                                // a completely independent job from the
+                                // driver row's settingsWriter write, racing
+                                // it on a different thread with no ordering
+                                // guarantee. If this flush landed first, a
+                                // just-picked driver could be silently
+                                // dropped from the saved file. Submitting
+                                // to the shared, single-threaded
+                                // settingsWriter instead guarantees this
+                                // flush is queued *after* any already-
+                                // launched driver write, and also survives
+                                // onClose()'s navigation same as that write
+                                // does.
+                                settingsWriter.launch {
                                     RPCS3.instance.settingsFlush()
                                     withContext(Dispatchers.Main) { onClose() }
                                 }

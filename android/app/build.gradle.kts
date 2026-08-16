@@ -41,15 +41,39 @@ android {
             val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
             val keystorePath = System.getenv("KEYSTORE_PATH") ?: ""
 
+            // Committed fallback keystore, same file every build/every
+            // machine. This used to fall back to keytool-generating a
+            // *fresh* ~/debug.keystore whenever KEYSTORE_PATH wasn't set --
+            // which on GitHub Actions is every single debug build, since
+            // runners are wiped between runs. That meant every CI debug
+            // APK carried a brand-new random signing certificate, so
+            // Android refused to install it over the previous one (or the
+            // sideloader force-uninstalled first, wiping app data/settings
+            // -- which is exactly why driver picks and other settings
+            // looked like they "weren't persisting": the app itself was
+            // being reinstalled from scratch on every build). Using one
+            // fixed, repo-committed keystore for the non-release path
+            // keeps every debug build's signature identical, so installs
+            // are always clean in-place updates.
+            val repoDebugKeystore = rootProject.file("debug.keystore")
+
             if (keystorePath.isNotEmpty() && file(keystorePath).exists() && file(keystorePath).length() > 0) {
                 keyAlias = keystoreAlias
                 keyPassword = keystorePassword
                 storeFile = file(keystorePath)
                 storePassword = keystorePassword
+            } else if (repoDebugKeystore.exists() && repoDebugKeystore.length() > 0) {
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+                storeFile = repoDebugKeystore
+                storePassword = "android"
             } else {
+                // Last-resort fallback only -- should not be hit in this
+                // repo since debug.keystore is committed, but keeps a
+                // fresh checkout buildable even if it's ever deleted.
                 val debugKeystoreFile = file("${System.getProperty("user.home")}/debug.keystore")
 
-                println("⚠️ Custom keystore not found or empty! creating debug keystore.")
+                println("⚠️ No committed or custom keystore found! generating an ephemeral one.")
 
                 if (!debugKeystoreFile.exists()) {
                     Runtime.getRuntime().exec(
@@ -98,6 +122,14 @@ android {
 
     buildTypes {
         debug {
+            // Was unset, so AGP fell back to its own built-in "debug"
+            // signingConfig, which auto-creates ~/.android/debug.keystore
+            // if missing -- a fresh, different certificate on every CI
+            // runner. Pinning this to the same custom-key config the
+            // release build uses (which now prefers the repo-committed
+            // debug.keystore) keeps every debug APK's signature identical
+            // across builds and machines.
+            signingConfig = signingConfigs.getByName("custom-key")
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }
@@ -114,7 +146,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("custom-key") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("custom-key")
         }
     }
 

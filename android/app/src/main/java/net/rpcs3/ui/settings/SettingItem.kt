@@ -38,7 +38,21 @@ private fun variantsOf(item: JSONObject): List<String> {
 // composable leaves composition -- exactly what happens when Save/back
 // navigates away right after a write was kicked off (see
 // GameDriverSettings.kt for the bug this was causing).
-internal val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+//
+// Dispatchers.IO.limitedParallelism(1) rather than plain Dispatchers.IO:
+// this scope is now also used by GameSettingsScreen's Save button (see
+// GameSettingsScreen.kt), which used to flush on its own independent
+// rememberCoroutineScope(). That meant a driver pick's settingsSet+flush
+// and Save's settingsFlush could run concurrently on two different
+// Dispatchers.IO threads with no ordering between them -- if Save's
+// flush finished first, it could write the on-disk settings file before
+// the driver's settingsSet had actually landed, silently dropping the
+// pick despite the driver write's own immediate flush "winning" the
+// race only sometimes. A single-thread dispatcher makes every settings
+// write on this scope execute strictly one-at-a-time, in submission
+// order, so a queued driver write always completes before a
+// later-submitted Save flush runs.
+internal val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
 private fun commit(
     context: Context,

@@ -73,6 +73,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.ColorDrawable
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -192,6 +194,18 @@ fun GameDetailDialog(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT
                 )
+                // The Dialog theme's default windowBackground is the
+                // classic floating-card drawable: a rounded rect with
+                // built-in inset padding baked into the drawable itself,
+                // separate from the window's width/height. That padding is
+                // transparent, so even at MATCH_PARENT the underlying
+                // screen showed through around the edges -- setLayout
+                // alone only fixes the window's bounds, not what's
+                // painted at those bounds. Swapping to a plain transparent
+                // drawable removes that inset entirely; our own Box
+                // already paints LaunchBlack (or the game art) across the
+                // full window regardless.
+                win.setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))
                 WindowCompat.setDecorFitsSystemWindows(win, false)
                 win.attributes = win.attributes.apply {
                     layoutInDisplayCutoutMode =
