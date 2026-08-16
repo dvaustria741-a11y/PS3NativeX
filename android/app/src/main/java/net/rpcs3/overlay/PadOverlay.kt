@@ -15,6 +15,12 @@ import android.view.SurfaceView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.scale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import net.rpcs3.Digital1Flags
 import net.rpcs3.Digital2Flags
 import net.rpcs3.R
@@ -31,6 +37,21 @@ data class State(
     var rightStickY: Int = 127
 )
 
+// A snapshot rather than passing State itself down the channel: State's
+// fields are mutated in place on the UI thread for every touch event, so a
+// consumer reading it off-thread could observe a half-updated object (e.g.
+// leftStickX from one event, leftStickY from the next). Copying the values
+// out here is cheap and makes each channel element a consistent point-in-time
+// read.
+private data class PadDataSnapshot(
+    val digital0: Int,
+    val digital1: Int,
+    val leftStickX: Int,
+    val leftStickY: Int,
+    val rightStickX: Int,
+    val rightStickY: Int
+)
+
 class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context, attrs) {
     private val buttons: Array<PadOverlayButton>
     private val dpad: PadOverlayDpad
@@ -43,6 +64,41 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
     private val prefs by lazy { context!!.getSharedPreferences("PadOverlayPrefs", Context.MODE_PRIVATE) }
     private var touchSlop = 0
     private var reservedZones: List<Rect> = emptyList()
+
+    // RPCS3.instance.overlayPadData() was being called synchronously on the
+    // UI thread from setOnTouchListener for every single MotionEvent,
+    // including every ACTION_MOVE while dragging a stick. A fast drag can
+    // produce move events faster than the emulation core can service the
+    // JNI call (it may briefly block on a lock the running game is holding),
+    // which stalls the UI thread's input/draw dispatch right when you're
+    // mid-drag -- exactly the "lags when I drag" symptom. Pushing the call
+    // onto this scope instead means a slow native call never blocks
+    // rendering. Channel.CONFLATED specifically (not a normal queue): if the
+    // consumer falls behind a fast drag, we want it to catch up to the
+    // latest finger position, not work through a growing backlog of stale
+    // intermediate ones.
+    private val padDataScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val padDataChannel = Channel<PadDataSnapshot>(Channel.CONFLATED)
+
+    init {
+        padDataScope.launch {
+            for (data in padDataChannel) {
+                RPCS3.instance.overlayPadData(
+                    data.digital0,
+                    data.digital1,
+                    data.leftStickX,
+                    data.leftStickY,
+                    data.rightStickX,
+                    data.rightStickY
+                )
+            }
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        padDataScope.cancel()
+    }
 
     fun r3Bounds(): Rect = Rect(sticks.last().bounds)
     private val idleAlpha by lazy {
@@ -412,13 +468,15 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 }
             }
 
-            RPCS3.instance.overlayPadData(
-                state.digital[0],
-                state.digital[1],
-                state.leftStickX,
-                state.leftStickY,
-                state.rightStickX,
-                state.rightStickY
+            padDataChannel.trySend(
+                PadDataSnapshot(
+                    state.digital[0],
+                    state.digital[1],
+                    state.leftStickX,
+                    state.leftStickY,
+                    state.rightStickX,
+                    state.rightStickY
+                )
             )
 
             if (!hit && (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)) {
