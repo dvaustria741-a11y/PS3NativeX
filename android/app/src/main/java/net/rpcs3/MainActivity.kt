@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
         }
 
         RPCS3.internalDirectory = applicationContext.filesDir.absolutePath
+        ControllerSkinStore.load(applicationContext)
 
         Permission.PostNotifications.requestPermission(this)
 

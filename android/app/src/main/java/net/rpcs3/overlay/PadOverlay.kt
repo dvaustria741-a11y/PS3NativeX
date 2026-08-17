@@ -21,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import net.rpcs3.ControllerSkinStore
 import net.rpcs3.Digital1Flags
 import net.rpcs3.Digital2Flags
 import net.rpcs3.R
@@ -230,14 +231,18 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
         leftStick = PadOverlayStick(
             resources,
             true,
-            PadButtonArt.stickWell(buttonSize * 2),
-            PadButtonArt.stickKnob(buttonSize * 2)
+            skinBitmap("analog_base_left") ?: skinBitmap("analog_base")
+                ?: PadButtonArt.stickWell(buttonSize * 2),
+            skinBitmap("analog_stick_left") ?: skinBitmap("analog_stick")
+                ?: PadButtonArt.stickKnob(buttonSize * 2)
         )
         rightStick = PadOverlayStick(
             resources,
             false,
-            PadButtonArt.stickWell(buttonSize * 2),
-            PadButtonArt.stickKnob(buttonSize * 2)
+            skinBitmap("analog_base_right") ?: skinBitmap("analog_base")
+                ?: PadButtonArt.stickWell(buttonSize * 2),
+            skinBitmap("analog_stick_right") ?: skinBitmap("analog_stick")
+                ?: PadButtonArt.stickKnob(buttonSize * 2)
         )
 
         leftStick.setBounds(0, 0, buttonSize * 2, buttonSize * 2)
@@ -251,7 +256,7 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
             resources,
             true,
             PadButtonArt.stickWell(l3r3Size),
-            PadButtonArt.circleButton(l3r3Size, "L3"),
+            skinBitmap("l3") ?: PadButtonArt.circleButton(l3r3Size, "L3"),
             pressDigitalIndex = 0,
             pressBit = Digital1Flags.CELL_PAD_CTRL_L3.bit
         )
@@ -267,7 +272,7 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
             resources,
             false,
             PadButtonArt.stickWell(l3r3Size),
-            PadButtonArt.circleButton(l3r3Size, "R3"),
+            skinBitmap("r3") ?: PadButtonArt.circleButton(l3r3Size, "R3"),
             pressDigitalIndex = 0,
             pressBit = Digital1Flags.CELL_PAD_CTRL_R3.bit
         )
@@ -291,8 +296,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 pillH,
                 Digital1Flags.CELL_PAD_CTRL_START,
                 Digital2Flags.None,
-                art = PadButtonArt.pillButton(pillW, pillH, "START"),
-                pressedArt = PadButtonArt.pillButton(pillW, pillH, "START", pressed = true)
+                art = skinBitmap("start") ?: PadButtonArt.pillButton(pillW, pillH, "START"),
+                pressedArt = skinBitmap("start")
+                    ?: PadButtonArt.pillButton(pillW, pillH, "START", pressed = true)
             ),
             createButton(
                 R.drawable.select,
@@ -302,8 +308,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 pillH,
                 Digital1Flags.CELL_PAD_CTRL_SELECT,
                 Digital2Flags.None,
-                art = PadButtonArt.pillButton(pillW, pillH, "SELECT"),
-                pressedArt = PadButtonArt.pillButton(pillW, pillH, "SELECT", pressed = true)
+                art = skinBitmap("select") ?: PadButtonArt.pillButton(pillW, pillH, "SELECT"),
+                pressedArt = skinBitmap("select")
+                    ?: PadButtonArt.pillButton(pillW, pillH, "SELECT", pressed = true)
             ),
             createButton(
                 x = btnPsX,
@@ -312,8 +319,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 height = pillH,
                 digital1 = Digital1Flags.CELL_PAD_CTRL_PS,
                 digital2 = Digital2Flags.None,
-                art = PadButtonArt.pillButton(psW, pillH, "PS"),
-                pressedArt = PadButtonArt.pillButton(psW, pillH, "PS", pressed = true)
+                art = skinBitmap("ps") ?: PadButtonArt.pillButton(psW, pillH, "PS"),
+                pressedArt = skinBitmap("ps")
+                    ?: PadButtonArt.pillButton(psW, pillH, "PS", pressed = true)
             ),
 
             createButton(
@@ -324,8 +332,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 shoulderH,
                 Digital1Flags.None,
                 Digital2Flags.CELL_PAD_CTRL_L1,
-                art = PadButtonArt.shoulderButton(shoulderW, shoulderH, "L1", true, true),
-                pressedArt = PadButtonArt.shoulderButton(shoulderW, shoulderH, "L1", true, true, pressed = true)
+                art = skinBitmap("l1") ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "L1", true, true),
+                pressedArt = skinBitmap("l1")
+                    ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "L1", true, true, pressed = true)
             ),
             createButton(
                 R.drawable.l2,
@@ -335,8 +344,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 shoulderH,
                 Digital1Flags.None,
                 Digital2Flags.CELL_PAD_CTRL_L2,
-                art = PadButtonArt.shoulderButton(shoulderW, shoulderH, "L2", true, false),
-                pressedArt = PadButtonArt.shoulderButton(shoulderW, shoulderH, "L2", true, false, pressed = true)
+                art = skinBitmap("l2") ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "L2", true, false),
+                pressedArt = skinBitmap("l2")
+                    ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "L2", true, false, pressed = true)
             ),
             createButton(
                 R.drawable.r1,
@@ -346,8 +356,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 shoulderH,
                 Digital1Flags.None,
                 Digital2Flags.CELL_PAD_CTRL_R1,
-                art = PadButtonArt.shoulderButton(shoulderW, shoulderH, "R1", false, true),
-                pressedArt = PadButtonArt.shoulderButton(shoulderW, shoulderH, "R1", false, true, pressed = true)
+                art = skinBitmap("r1") ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "R1", false, true),
+                pressedArt = skinBitmap("r1")
+                    ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "R1", false, true, pressed = true)
             ),
             createButton(
                 R.drawable.r2,
@@ -357,8 +368,9 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 shoulderH,
                 Digital1Flags.None,
                 Digital2Flags.CELL_PAD_CTRL_R2,
-                art = PadButtonArt.shoulderButton(shoulderW, shoulderH, "R2", false, false),
-                pressedArt = PadButtonArt.shoulderButton(shoulderW, shoulderH, "R2", false, false, pressed = true)
+                art = skinBitmap("r2") ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "R2", false, false),
+                pressedArt = skinBitmap("r2")
+                    ?: PadButtonArt.shoulderButton(shoulderW, shoulderH, "R2", false, false, pressed = true)
             ),
         )
 
@@ -546,6 +558,11 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
 
         return drawable.toBitmap(width, height)
     }
+
+    /** Active custom skin's bitmap for [key], or null to fall back to the
+     *  built-in procedurally-drawn art. See ControllerSkinStore. */
+    private fun skinBitmap(key: String): Bitmap? =
+        context?.let { ControllerSkinStore.bitmapForKey(it, key) }
 
     private fun createButton(
         resourceId: Int = 0,

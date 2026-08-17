@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.SettingsApplications
@@ -99,6 +100,7 @@ internal fun iconForCategory(name: String): ImageVector = when (name) {
     "Log" -> Icons.Outlined.Article
     ControlsCategory -> Icons.Outlined.SportsEsports
     DriverCategory -> Icons.Outlined.Memory
+    SkinsCategory -> Icons.Outlined.Palette
     PatchesCategory -> Icons.Outlined.Healing
     else -> Icons.Outlined.MoreHoriz
 }
@@ -185,7 +187,8 @@ fun GameSettingsScreen(
         val categories = remember(tree) {
             listOf(SettingsCategory(DriverCategory, listOf(DriverCategory), null)) +
                 categoriesOf(tree) +
-                SettingsCategory(ControlsCategory, listOf(ControlsCategory), null)
+                SettingsCategory(ControlsCategory, listOf(ControlsCategory), null) +
+                SettingsCategory(SkinsCategory, listOf(SkinsCategory), null)
         }
         val currentName = categories.getOrNull(selected)?.label
 
@@ -229,6 +232,7 @@ fun GameSettingsScreen(
                             label = when (entry.label) {
                                 ControlsCategory -> stringResource(R.string.settings_category_controls)
                                 DriverCategory -> stringResource(R.string.settings_category_gpu_driver)
+                                SkinsCategory -> stringResource(R.string.settings_category_skins)
                                 else -> entry.label
                             },
                             isSelected = index == selected,
@@ -408,6 +412,15 @@ fun GameSettingsScreen(
                                 .padding(horizontal = 20.dp, vertical = 14.dp)
                         ) {
                             ControlsSettings()
+                        }
+                    } else if (name == SkinsCategory) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            SkinsSettings()
                         }
                     } else if (node == null) {
                         Box(Modifier.fillMaxSize())

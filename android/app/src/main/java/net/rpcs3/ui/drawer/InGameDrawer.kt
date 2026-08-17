@@ -65,6 +65,8 @@ import net.rpcs3.RPCS3
 import net.rpcs3.ui.patches.InGamePatchesPanel
 import net.rpcs3.ui.patches.PatchesCategory
 import net.rpcs3.ui.settings.ControlsCategory
+import net.rpcs3.ui.settings.SkinsCategory
+import net.rpcs3.ui.settings.SkinsSettings
 import net.rpcs3.ui.settings.ControlsSettings
 import net.rpcs3.ui.settings.SettingsCategory
 import net.rpcs3.ui.settings.SettingsNodeContent
@@ -201,6 +203,7 @@ private fun InGameSettingsPanel(
         val categories = remember(tree) {
             categoriesOf(tree) +
                 SettingsCategory(ControlsCategory, listOf(ControlsCategory), null) +
+                SettingsCategory(SkinsCategory, listOf(SkinsCategory), null) +
                 SettingsCategory(PatchesCategory, listOf(PatchesCategory), null)
         }
 
@@ -259,6 +262,8 @@ private fun InGameSettingsPanel(
                             icon = iconForCategory(entry.label),
                             label = if (entry.label == ControlsCategory) {
                                 stringResource(R.string.settings_category_controls)
+                            } else if (entry.label == SkinsCategory) {
+                                stringResource(R.string.settings_category_skins)
                             } else {
                                 entry.label
                             },
@@ -302,6 +307,15 @@ private fun InGameSettingsPanel(
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     ControlsSettings()
+                }
+            } else if (name == SkinsCategory) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    SkinsSettings()
                 }
             } else if (node != null) {
                 Column(
