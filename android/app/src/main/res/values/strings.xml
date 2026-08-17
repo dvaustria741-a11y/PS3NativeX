@@ -296,6 +296,21 @@
     <string name="drivers_install_unsupported_android">Your android version doesn\'t support selected driver</string>
     <string name="drivers_install_already_installed">Selected driver is already installed</string>
 
+    <string name="drivers_catalog_title">Driver catalog</string>
+    <string name="drivers_catalog_refresh">Refresh</string>
+    <string name="drivers_catalog_retry">Retry</string>
+    <string name="drivers_catalog_empty">No drivers available right now.</string>
+    <string name="drivers_catalog_load_failed">Couldn\'t load the driver catalog. Check your connection and try again.</string>
+    <string name="drivers_catalog_best_match">Best match</string>
+    <string name="drivers_catalog_downloaded">Downloaded</string>
+    <string name="drivers_catalog_apply">Apply</string>
+    <string name="drivers_catalog_remove">Remove</string>
+    <string name="drivers_catalog_download_apply">Download &amp; apply</string>
+    <string name="drivers_catalog_credits">Credits: %1$s</string>
+    <string name="drivers_catalog_install_success">%1$s installed and applied</string>
+    <string name="drivers_catalog_install_failed">Couldn\'t install %1$s</string>
+    <string name="drivers_catalog_unknown_device">Couldn\'t identify your chip\'s Adreno family, so drivers aren\'t flagged as a match here -- they should still work if your device uses an Adreno GPU.</string>
+
     <string name="patches_title">Patches · %1$s</string>
     <string name="patches_group_ungrouped">Ungrouped</string>
     <string name="patches_tab_available">Available</string>

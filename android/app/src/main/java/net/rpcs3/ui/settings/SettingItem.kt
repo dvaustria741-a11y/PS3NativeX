@@ -52,7 +52,10 @@ private fun variantsOf(item: JSONObject): List<String> {
 // write on this scope execute strictly one-at-a-time, in submission
 // order, so a queued driver write always completes before a
 // later-submitted Save flush runs.
-internal val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+// Public (not internal): GpuDriversScreen.kt lives in net.rpcs3.ui.drivers,
+// a different package, and needs this same guarantee for both the manual
+// driver list and the driver-catalog Apply flow (see that file).
+val settingsWriter = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
 private fun commit(
     context: Context,

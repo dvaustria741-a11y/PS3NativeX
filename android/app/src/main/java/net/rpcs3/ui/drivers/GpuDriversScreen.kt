@@ -87,6 +87,7 @@ import net.rpcs3.ui.settings.DriverFlagsSection
 import net.rpcs3.ui.components.PaneScaffold
 import net.rpcs3.ui.components.PaneSectionTitle
 import net.rpcs3.ui.components.PaneTab
+import net.rpcs3.ui.settings.settingsWriter
 import net.rpcs3.utils.GpuDriverHelper
 import net.rpcs3.utils.GpuDriverInstallResult
 import net.rpcs3.utils.GpuDriverMetadata
@@ -202,6 +203,40 @@ fun GpuDriversScreen(navigateBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Shared by the manual "Installed" list's onSelect below and the
+        // catalog section's onApply -- both need the exact same
+        // settingsWriter + flush + error-snackbar behavior, so this exists
+        // once instead of being duplicated (and potentially drifting) at
+        // both call sites.
+        fun applyDriver(label: String, path: String) {
+            selectedDriver = label
+            prefs.edit { putString("selected_gpu_driver", label) }
+
+            settingsWriter.launch {
+                val pathOk = RPCS3.instance.settingsSet(
+                    "Video@@Vulkan@@Custom Driver@@Path", "\"" + path + "\"", ""
+                )
+                val dirOk = RPCS3.instance.settingsSet(
+                    "Video@@Vulkan@@Custom Driver@@Internal Data Directory",
+                    "\"" + context.filesDir + "\"", ""
+                )
+
+                if (pathOk && dirOk) {
+                    RPCS3.instance.settingsFlush()
+                }
+
+                if (!pathOk || !dirOk) {
+                    withContext(Dispatchers.Main) {
+                        snackbarHostState.showSnackbar(
+                            message = context.getString(R.string.settings_error_assign, label),
+                            actionLabel = context.getString(R.string.action_dismiss),
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                }
+            }
+        }
+
         PaneScaffold(
             title = stringResource(R.string.drivers_title),
             tabs = listOf(
@@ -219,24 +254,18 @@ fun GpuDriversScreen(navigateBack: () -> Unit) {
                     metadata = metadata,
                     isSelected = metadata.label == selectedDriver,
                     onSelect = {
-                        selectedDriver = metadata.label
-                        prefs.edit {
-                            putString(
-                                "selected_gpu_driver", selectedDriver ?: ""
-                            )
-                        }
-
-                        val path = if (metadata.name == "Default") "" else file.path
-
-                        coroutineScope.launch(Dispatchers.IO) {
-                            RPCS3.instance.settingsSet("Video@@Vulkan@@Custom Driver@@Path", "\"" + path + "\"", "")
-                            RPCS3.instance.settingsSet("Video@@Vulkan@@Custom Driver@@Internal Data Directory", "\"" + context.filesDir + "\"", "")
-                        }
+                        applyDriver(
+                            metadata.label,
+                            if (metadata.name == "Default") "" else file.path
+                        )
                     },
                     onDelete = if (metadata.name == "Default") null else { driverFile ->
                         coroutineScope.launch {
                             if (driverFile.deleteRecursively()) {
                                 drivers = GpuDriverHelper.getInstalledDrivers(context)
+                                if (selectedDriver == metadata.label) {
+                                    applyDriver("Default", "")
+                                }
                             }
                         }
                     })
@@ -251,6 +280,36 @@ fun GpuDriversScreen(navigateBack: () -> Unit) {
                 icon = Icons.Default.Add,
                 enabled = !isInstalling,
                 onClick = { showDriverDialog = true }
+            )
+
+            // Curated catalog with per-device recommendations, alongside
+            // the manual list and paste-a-repo-URL flow above rather than
+            // replacing either. See DriverCatalogSection.kt for why it
+            // tracks "installed" by catalog id rather than matching names.
+            DriverCatalogSection(
+                installedLabels = drivers.values.map { it.label }.toSet(),
+                onInstalled = {
+                    drivers = GpuDriverHelper.getInstalledDrivers(context)
+                },
+                onApply = { installedLabel ->
+                    val entry = drivers.entries.find { it.value.label == installedLabel }
+                    val path = if (entry?.value?.name == "Default") "" else entry?.key?.path.orEmpty()
+                    applyDriver(installedLabel, path)
+                },
+                onRemove = { installedLabel ->
+                    val entry = drivers.entries.find { it.value.label == installedLabel }
+                    val file = entry?.key
+                    if (file != null) {
+                        coroutineScope.launch {
+                            if (file.deleteRecursively()) {
+                                drivers = GpuDriverHelper.getInstalledDrivers(context)
+                                if (selectedDriver == installedLabel) {
+                                    applyDriver("Default", "")
+                                }
+                            }
+                        }
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
