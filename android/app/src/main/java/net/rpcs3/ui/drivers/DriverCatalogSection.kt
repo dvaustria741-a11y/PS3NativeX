@@ -2,6 +2,7 @@ package net.rpcs3.ui.drivers
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -127,14 +128,22 @@ fun DriverCatalogSection(
         scope.launch {
             val result = withContext(Dispatchers.IO) { runCatching { repo.loadCatalog() } }
             result.onSuccess { drivers ->
-                // Best-match entries first, then everything else, each
-                // group alphabetical -- matches how the recommendation is
-                // actually meant to be read: the thing that fits this
-                // phone should be the first thing you see.
+                // Was sorting (and badging, see CatalogDriverCard) on GPU
+                // family match alone -- but ~170 of this catalog's ~180
+                // entries are all tagged the same generic "Adreno 6xx/7xx"
+                // family, so nearly the entire list came back flagged
+                // "Best match" simultaneously, which is exactly what got
+                // reported as inaccurate. EmuCoreC's own screen (the thing
+                // being matched here) only calls something "Best match"
+                // when it's BOTH family-compatible AND the catalog's own
+                // curated `recommended` flag is set -- family match alone
+                // just gets a plain "Compatible" badge. Matches that
+                // 4-tier rank exactly: family-match+curated first, then
+                // family-match alone, then curated-but-unknown-family,
+                // then everything else, wrong-family last.
                 catalog = drivers.sortedWith(
-                    compareByDescending<RemoteGpuDriver> {
-                        GpuDriverRecommendations.match(it, deviceProfile) == GpuDriverMatch.COMPATIBLE
-                    }.thenBy { it.name.lowercase() }
+                    compareByDescending<RemoteGpuDriver> { it.recommendationRank(deviceProfile) }
+                        .thenBy { it.name.lowercase() }
                 )
                 loadState = CatalogLoadState.Loaded
             }.onFailure {
@@ -299,7 +308,9 @@ private fun CatalogDriverCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpand),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
@@ -310,7 +321,9 @@ private fun CatalogDriverCard(
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.drivers_catalog_collapse else R.string.drivers_catalog_expand
+                    ),
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
@@ -318,9 +331,29 @@ private fun CatalogDriverCard(
             Spacer(Modifier.height(6.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (match == GpuDriverMatch.COMPATIBLE) {
-                    CatalogBadge(
-                        text = stringResource(R.string.drivers_catalog_best_match),
+                // Was showing "Best match" for GPU-family match alone,
+                // regardless of the catalog's own curated `recommended`
+                // flag -- see the note on recommendationRank below for why
+                // that flagged nearly the whole catalog at once. Matches
+                // EmuCoreC's own four-way badge exactly: family+curated is
+                // "Best match", family alone is a plain "Compatible", a
+                // driver for a different chip family gets an explicit
+                // warning instead of silence, and a curated pick with an
+                // undetected family still surfaces as "Recommended".
+                when {
+                    match == GpuDriverMatch.COMPATIBLE -> CatalogBadge(
+                        text = stringResource(
+                            if (driver.recommended) R.string.drivers_catalog_best_match
+                            else R.string.drivers_catalog_compatible
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    match == GpuDriverMatch.OTHER_FAMILY -> CatalogBadge(
+                        text = stringResource(R.string.drivers_catalog_other_family),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    driver.recommended -> CatalogBadge(
+                        text = stringResource(R.string.drivers_catalog_recommended),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -408,3 +441,15 @@ private fun CatalogBadge(text: String, color: androidx.compose.ui.graphics.Color
             .padding(horizontal = 8.dp, vertical = 3.dp)
     )
 }
+
+/** Ported from EmuCoreC's GpuDriverScreen.kt (same ranking it sorts its own
+ *  catalog by). COMPATIBLE+recommended ranks highest, OTHER_FAMILY (a
+ *  driver built for a different chip family than this device) ranks
+ *  lowest -- below even an unrecommended, family-unknown entry. */
+private fun RemoteGpuDriver.recommendationRank(profile: SnapdragonGpuProfile?): Int =
+    when (GpuDriverRecommendations.match(this, profile)) {
+        GpuDriverMatch.COMPATIBLE -> if (recommended) 3 else 2
+        GpuDriverMatch.UNKNOWN -> if (recommended) 1 else 0
+        GpuDriverMatch.OTHER_FAMILY -> -1
+    }
+
