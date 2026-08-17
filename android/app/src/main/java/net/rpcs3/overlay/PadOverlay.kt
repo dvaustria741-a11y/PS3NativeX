@@ -14,6 +14,7 @@ import android.view.MotionEvent
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -564,6 +565,57 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
     private fun skinBitmap(key: String): Bitmap? =
         context?.let { ControllerSkinStore.bitmapForKey(it, key) }
 
+    /**
+     * Composite up/left/right/down skin images into one resting-state d-pad
+     * bitmap, positioned exactly like PadOverlayDpad.updateBounds() places
+     * the individual drawables (top/bottom centered horizontally at full
+     * height/width, left/right centered vertically with width/height
+     * swapped) -- so a skin's 4 separate button images sit where a real
+     * d-pad's arms sit instead of being squeezed into the single continuous
+     * plus shape PadButtonArt.dpadCross draws. Requires all four; a partial
+     * set falls back entirely to the procedural cross rather than drawing
+     * an incomplete d-pad.
+     */
+    private fun skinDpadBackground(
+        width: Int,
+        height: Int,
+        buttonWidth: Int,
+        buttonHeight: Int
+    ): Bitmap? {
+        val top = skinBitmap("up") ?: return null
+        val bottom = skinBitmap("down") ?: return null
+        val left = skinBitmap("left") ?: return null
+        val right = skinBitmap("right") ?: return null
+
+        val bitmap = createBitmap(width, height)
+        val canvas = Canvas(bitmap)
+        val cx = width / 2
+        val cy = height / 2
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+
+        canvas.drawBitmap(
+            top, null,
+            Rect(cx - buttonWidth / 2, 0, cx + buttonWidth / 2, buttonHeight),
+            paint
+        )
+        canvas.drawBitmap(
+            bottom, null,
+            Rect(cx - buttonWidth / 2, height - buttonHeight, cx + buttonWidth / 2, height),
+            paint
+        )
+        canvas.drawBitmap(
+            left, null,
+            Rect(0, cy - buttonWidth / 2, buttonHeight, cy + buttonWidth / 2),
+            paint
+        )
+        canvas.drawBitmap(
+            right, null,
+            Rect(width - buttonHeight, cy - buttonWidth / 2, width, cy + buttonWidth / 2),
+            paint
+        )
+        return bitmap
+    }
+
     private fun createButton(
         resourceId: Int = 0,
         x: Int,
@@ -609,28 +661,28 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
         val isDpad = inputId == "dpad"
         val area = Rect(x, y, x + width, y + height)
         val upBitmap = if (faceGroup) {
-            PadButtonArt.faceButton(buttonWidth, PadButtonArt.TRIANGLE_COLOR, PadSymbol.Triangle)
+            skinBitmap("triangle") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.TRIANGLE_COLOR, PadSymbol.Triangle)
         } else if (isDpad) {
             PadButtonArt.dpadPressHighlight(buttonWidth, buttonHeight, buttonWidth * 0.26f)
         } else {
             getBitmap(upResource, buttonWidth, buttonHeight)
         }
         val leftBitmap = if (faceGroup) {
-            PadButtonArt.faceButton(buttonWidth, PadButtonArt.SQUARE_COLOR, PadSymbol.Square)
+            skinBitmap("square") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.SQUARE_COLOR, PadSymbol.Square)
         } else if (isDpad) {
             PadButtonArt.dpadPressHighlight(buttonHeight, buttonWidth, buttonWidth * 0.26f)
         } else {
             getBitmap(leftResource, buttonHeight, buttonWidth)
         }
         val rightBitmap = if (faceGroup) {
-            PadButtonArt.faceButton(buttonWidth, PadButtonArt.CIRCLE_COLOR, PadSymbol.Circle)
+            skinBitmap("circle") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.CIRCLE_COLOR, PadSymbol.Circle)
         } else if (isDpad) {
             PadButtonArt.dpadPressHighlight(buttonHeight, buttonWidth, buttonWidth * 0.26f)
         } else {
             getBitmap(rightResource, buttonHeight, buttonWidth)
         }
         val downBitmap = if (faceGroup) {
-            PadButtonArt.faceButton(buttonWidth, PadButtonArt.CROSS_COLOR, PadSymbol.Cross)
+            skinBitmap("cross") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.CROSS_COLOR, PadSymbol.Cross)
         } else if (isDpad) {
             PadButtonArt.dpadPressHighlight(buttonWidth, buttonHeight, buttonWidth * 0.26f)
         } else {
@@ -645,27 +697,28 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
             downBitmap, downBit,
             multitouch,
             if (isDpad) {
-                PadButtonArt.dpadCross(area.width(), area.height(), buttonWidth.toFloat())
+                skinDpadBackground(area.width(), area.height(), buttonWidth, buttonHeight)
+                    ?: PadButtonArt.dpadCross(area.width(), area.height(), buttonWidth.toFloat())
             } else {
                 null
             },
             if (faceGroup) {
-                PadButtonArt.faceButton(buttonWidth, PadButtonArt.TRIANGLE_COLOR, PadSymbol.Triangle, true)
+                skinBitmap("triangle") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.TRIANGLE_COLOR, PadSymbol.Triangle, true)
             } else {
                 null
             },
             if (faceGroup) {
-                PadButtonArt.faceButton(buttonWidth, PadButtonArt.SQUARE_COLOR, PadSymbol.Square, true)
+                skinBitmap("square") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.SQUARE_COLOR, PadSymbol.Square, true)
             } else {
                 null
             },
             if (faceGroup) {
-                PadButtonArt.faceButton(buttonWidth, PadButtonArt.CIRCLE_COLOR, PadSymbol.Circle, true)
+                skinBitmap("circle") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.CIRCLE_COLOR, PadSymbol.Circle, true)
             } else {
                 null
             },
             if (faceGroup) {
-                PadButtonArt.faceButton(buttonWidth, PadButtonArt.CROSS_COLOR, PadSymbol.Cross, true)
+                skinBitmap("cross") ?: PadButtonArt.faceButton(buttonWidth, PadButtonArt.CROSS_COLOR, PadSymbol.Cross, true)
             } else {
                 null
             },
