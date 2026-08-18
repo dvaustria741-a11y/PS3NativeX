@@ -11,8 +11,8 @@ object Rpcs {
     val Outline = Color(0xFF2A2A3A)
     val OutlineSoft = Color(0xFF20202E)
 
-    val Accent = Color(0xFF9BCC28)
-    val AccentBright = Color(0xFFC4E86B)
+    val Accent = Color(0xFF1A9FFF)
+    val AccentBright = Color(0xFF4FC3F7)
 
     val TextPrimary = Color(0xFFF0F4FF)
     val TextSecondary = Color(0xFF93A6BC)
