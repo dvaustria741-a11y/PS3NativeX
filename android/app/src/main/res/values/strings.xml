@@ -308,6 +308,7 @@
     <string name="drivers_catalog_downloaded">Downloaded</string>
     <string name="drivers_catalog_expand">Show details</string>
     <string name="drivers_catalog_collapse">Hide details</string>
+    <string name="drivers_catalog_source">Source</string>
     <string name="drivers_catalog_apply">Apply</string>
     <string name="drivers_catalog_remove">Remove</string>
     <string name="drivers_catalog_download_apply">Download &amp; apply</string>

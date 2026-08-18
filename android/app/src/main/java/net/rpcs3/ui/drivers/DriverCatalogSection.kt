@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,8 +36,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -299,6 +303,8 @@ private fun CatalogDriverCard(
     onRemove: () -> Unit,
     onDownloadAndApply: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -381,13 +387,38 @@ private fun CatalogDriverCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (expanded && driver.credits.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.drivers_catalog_credits, driver.credits),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // credits/sourceUrl were already parsed off RemoteGpuDriver but
+            // never actually rendered anywhere -- sourceUrl in particular
+            // is the one EmuCoreC surfaces as a tappable "Source" link so
+            // you can go check a driver's release page before installing
+            // it, which is worth having for exactly the same reason there.
+            if (expanded && (driver.credits.isNotBlank() || driver.sourceUrl.isNotBlank())) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (driver.credits.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.drivers_catalog_credits, driver.credits),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (driver.sourceUrl.isNotBlank()) {
+                        OutlinedButton(onClick = { uriHandler.openUri(driver.sourceUrl) }) {
+                            Icon(
+                                Icons.Outlined.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.drivers_catalog_source))
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(10.dp))
